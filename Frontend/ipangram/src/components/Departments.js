@@ -2,26 +2,40 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Navbar from "./Navbar";
 import { format } from "date-fns";
+import { useForm } from "react-hook-form";
+import ClipLoader from "react-spinners/ClipLoader";
 
 const Departments = () => {
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [newDepartmentName, setNewDepartmentName] = useState("");
   const [editingDepartmentId, setEditingDepartmentId] = useState(null);
   const [userRole, setUserRole] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    formState: { errors },
+  } = useForm();
 
   useEffect(() => {
     const fetchDepartments = async () => {
+      setLoading(true);
       try {
         const token = localStorage.getItem("token");
         const response = await axios.get(
           "http://localhost:5000/api/departments",
           {
             headers: { Authorization: `Bearer ${token}` },
+            params: { page: currentPage, limit: 5 },
           }
         );
-        setDepartments(response.data);
+
+        setDepartments(response.data.departments);
+        setTotalPages(response.data.totalPages);
       } catch (error) {
         setError("Failed to fetch departments");
       } finally {
@@ -38,7 +52,7 @@ const Departments = () => {
 
     fetchDepartments();
     fetchUserRole();
-  }, []);
+  }, [currentPage]);
 
   useEffect(() => {
     if (error) {
@@ -49,48 +63,45 @@ const Departments = () => {
     }
   }, [error]);
 
-  const handleAddDepartment = async () => {
-    // Only allow if not an Employee
-    if (userRole === "Employee") return;
-
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.post(
-        "http://localhost:5000/api/departments",
-        { name: newDepartmentName },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      setDepartments([...departments, response.data]);
-      setNewDepartmentName("");
-    } catch (error) {
-      setError("Failed to add department");
-    }
+  const handleCloseError = () => {
+    setError("");
   };
 
-  const handleUpdateDepartment = async (id) => {
+  const onSubmit = async (data) => {
+    const { name } = data;
+
     // Only allow if not an Employee
     if (userRole === "Employee") return;
 
     try {
       const token = localStorage.getItem("token");
-      const response = await axios.put(
-        `http://localhost:5000/api/departments/${id}`,
-        { name: newDepartmentName },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      setDepartments(
-        departments.map((department) =>
-          department._id === id ? response.data : department
-        )
-      );
-      setNewDepartmentName("");
-      setEditingDepartmentId(null);
+      if (editingDepartmentId) {
+        const response = await axios.put(
+          `http://localhost:5000/api/departments/${editingDepartmentId}`,
+          { name },
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        setDepartments(
+          departments.map((department) =>
+            department._id === editingDepartmentId ? response.data : department
+          )
+        );
+        setEditingDepartmentId(null);
+      } else {
+        const response = await axios.post(
+          "http://localhost:5000/api/departments",
+          { name },
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        setDepartments([...departments, response.data]);
+      }
+      setValue("name", "");
     } catch (error) {
-      setError("Failed to update department");
+      setError("Failed to add/update department");
     }
   };
 
@@ -109,17 +120,6 @@ const Departments = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="text-center">
-        <div className="loader"></div>
-        <h3>Loading...</h3>
-      </div>
-    );
-  }
-  const handleCloseError = () => {
-    setError("");
-  };
   return (
     <>
       <Navbar />
@@ -130,7 +130,6 @@ const Departments = () => {
             className="alert alert-danger alert-dismissible fade show"
             role="alert"
           >
-            {" "}
             {error}{" "}
             <button
               type="button"
@@ -141,25 +140,20 @@ const Departments = () => {
           </div>
         )}
         {userRole !== "Employee" && (
-          <>
+          <form onSubmit={handleSubmit(onSubmit)}>
             <input
               type="text"
-              value={newDepartmentName}
-              onChange={(e) => setNewDepartmentName(e.target.value)}
+              {...register("name", { required: "Department name is required" })}
               placeholder="Department Name"
               className="form-control mt-3"
             />
-            <button
-              className="btn btn-primary mt-2"
-              onClick={
-                editingDepartmentId
-                  ? () => handleUpdateDepartment(editingDepartmentId)
-                  : handleAddDepartment
-              }
-            >
+            {errors.name && (
+              <div className="text-danger">{errors.name.message}</div>
+            )}
+            <button className="btn btn-primary mt-2" type="submit">
               {editingDepartmentId ? "Update Department" : "Add Department"}
             </button>
-          </>
+          </form>
         )}
         <table className="table table-bordered mt-3">
           <thead>
@@ -171,38 +165,81 @@ const Departments = () => {
             </tr>
           </thead>
           <tbody>
-            {departments.map((department) => (
-              <tr key={department._id}>
-                <td>{department.name}</td>
-                <td>
-                  {format(new Date(department.createdAt), "d MMM yyyy h:mm a")}
+            {loading ? (
+              <tr>
+                <td
+                  colSpan={userRole !== "Employee" ? 4 : 3}
+                  className="text-center"
+                >
+                  <ClipLoader color="#007bff" loading={loading} size={30} />
                 </td>
-                <td>
-                  {format(new Date(department.updatedAt), "d MMM yyyy h:mm a")}
-                </td>
-                {userRole !== "Employee" && (
-                  <td>
-                    <button
-                      className="btn btn-warning me-2"
-                      onClick={() => {
-                        setEditingDepartmentId(department._id);
-                        setNewDepartmentName(department.name);
-                      }}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="btn btn-danger"
-                      onClick={() => handleDeleteDepartment(department._id)}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                )}
               </tr>
-            ))}
+            ) : departments.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={userRole !== "Employee" ? 4 : 3}
+                  className="text-center"
+                >
+                  No departments found.
+                </td>
+              </tr>
+            ) : (
+              departments.map((department) => (
+                <tr key={department._id}>
+                  <td>{department.name}</td>
+                  <td>
+                    {format(
+                      new Date(department.createdAt),
+                      "d MMM yyyy h:mm a"
+                    )}
+                  </td>
+                  <td>
+                    {format(
+                      new Date(department.updatedAt),
+                      "d MMM yyyy h:mm a"
+                    )}
+                  </td>
+                  {userRole !== "Employee" && (
+                    <td>
+                      <button
+                        className="btn btn-warning me-2"
+                        onClick={() => {
+                          setEditingDepartmentId(department._id);
+                          setValue("name", department.name);
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn-danger"
+                        onClick={() => handleDeleteDepartment(department._id)}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
+        <div className="d-flex justify-content-between mt-3">
+          <button
+            className="btn btn-primary"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage(currentPage - 1)}
+          >
+            Previous
+          </button>
+          <span>{`Page ${currentPage} of ${totalPages}`}</span>
+          <button
+            className="btn btn-primary"
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage(currentPage + 1)}
+          >
+            Next
+          </button>
+        </div>
       </div>
     </>
   );

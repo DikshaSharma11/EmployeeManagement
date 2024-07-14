@@ -12,9 +12,24 @@ exports.createDepartment = async (req, res) => {
 };
 
 exports.getDepartments = async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+
   try {
-    const departments = await Department.find().populate("managerId", "email");
-    res.send(departments);
+    const departments = await Department.find()
+      .populate("managerId", "email")
+      .skip(skip)
+      .limit(limit);
+
+    const totalDepartments = await Department.countDocuments();
+
+    res.send({
+      departments,
+      totalDepartments,
+      totalPages: Math.ceil(totalDepartments / limit),
+      currentPage: page,
+    });
   } catch (error) {
     res.status(500).send(error);
   }

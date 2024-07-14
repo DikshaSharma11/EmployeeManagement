@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Navbar from "./Navbar";
 import { format } from "date-fns";
+import { useForm } from "react-hook-form";
+import ClipLoader from "react-spinners/ClipLoader";
 
 const Employees = () => {
   const [employees, setEmployees] = useState([]);
@@ -11,20 +13,25 @@ const Employees = () => {
   const [userRole, setUserRole] = useState("");
   const [selectedDepartmentId, setSelectedDepartmentId] = useState("");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
-  const [newEmployeeName, setNewEmployeeName] = useState("");
-  const [newEmployeeLocation, setNewEmployeeLocation] = useState("");
   const [filter, setFilter] = useState({ name: "", location: "", sort: "asc" });
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
 
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm();
+
   useEffect(() => {
     fetchEmployees();
     fetchUserRole();
     fetchDepartments();
   }, [filter, currentPage]);
- 
+
   useEffect(() => {
     if (error) {
       const timer = setTimeout(() => {
@@ -50,6 +57,7 @@ const Employees = () => {
   };
 
   const fetchEmployees = async () => {
+    setLoading(true);
     try {
       const token = localStorage.getItem("token");
       const response = await axios.get("http://localhost:5000/api/employees", {
@@ -77,10 +85,10 @@ const Employees = () => {
     fetchEmployees();
   };
 
-  const handleAddEmployee = async () => {
+  const handleAddEmployee = async (data) => {
     const employeeData = {
-      name: newEmployeeName,
-      location: newEmployeeLocation,
+      name: data.name,
+      location: data.location,
     };
 
     try {
@@ -93,9 +101,7 @@ const Employees = () => {
         }
       );
       setEmployees([response.data, ...employees]);
-      setNewEmployeeName("");
-      setNewEmployeeLocation("");
-      setSelectedDepartmentId("");
+      reset();
     } catch (error) {
       setError("Failed to add employee");
     }
@@ -131,17 +137,10 @@ const Employees = () => {
     employee.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (loading) {
-    return (
-      <div className="text-center">
-        <div className="loader"></div>
-        <h3>Loading...</h3>
-      </div>
-    );
-  }
   const handleCloseError = () => {
     setError("");
   };
+
   return (
     <>
       <Navbar />
@@ -152,7 +151,6 @@ const Employees = () => {
             className="alert alert-danger alert-dismissible fade show"
             role="alert"
           >
-            {" "}
             {error}{" "}
             <button
               type="button"
@@ -163,31 +161,33 @@ const Employees = () => {
           </div>
         )}
         {userRole === "Manager" && (
-          <>
+          <form onSubmit={handleSubmit(handleAddEmployee)}>
             <input
               type="text"
-              value={newEmployeeName}
-              onChange={(e) => setNewEmployeeName(e.target.value)}
+              {...register("name", { required: "Employee Name is required" })}
               placeholder="Employee Name"
               className="form-control mt-3"
             />
+            {errors.name && (
+              <span className="text-danger">{errors.name.message}</span>
+            )}
             <input
               type="text"
-              value={newEmployeeLocation}
-              onChange={(e) => setNewEmployeeLocation(e.target.value)}
+              {...register("location", {
+                required: "Employee Location is required",
+              })}
               placeholder="Employee Location"
               className="form-control mt-3"
             />
-
+            {errors.location && (
+              <span className="text-danger">{errors.location.message}</span>
+            )}
             <div className="btn-group mt-3">
-              <button
-                className="btn btn-primary me-2"
-                onClick={handleAddEmployee}
-              >
+              <button type="submit" className="btn btn-primary me-2">
                 Add Employee
               </button>
             </div>
-          </>
+          </form>
         )}
         <input
           type="text"
@@ -196,7 +196,6 @@ const Employees = () => {
           onChange={(e) => setSearchTerm(e.target.value)}
           className="form-control mt-3"
         />
-
         <div className="btn-group mt-3">
           <button
             className="btn btn-primary me-2"
@@ -223,8 +222,7 @@ const Employees = () => {
             Filter by Name Descending
           </button>
         </div>
-
-        {filteredEmployees.length === 0 ? (
+        {filteredEmployees.length === 0 && !loading ? (
           <div className="text-center mt-5">
             <h4>No employees found</h4>
           </div>
@@ -242,38 +240,49 @@ const Employees = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredEmployees.map((employee) => (
-                  <tr key={employee._id}>
-                    <td>{employee.name}</td>
-                    <td>{employee.location}</td>
-                    <td>{employee.departmentId?.name || "--"}</td>
-                    <td>
-                      {format(
-                        new Date(employee.createdAt),
-                        "d MMM yyyy h:mm a"
-                      )}
+                {loading ? (
+                  <tr>
+                    <td
+                      colSpan={userRole === "Manager" ? 6 : 5}
+                      className="text-center"
+                    >
+                      <ClipLoader color="#007bff" loading={loading} size={20} />
                     </td>
-                    <td>
-                      {format(
-                        new Date(employee.updatedAt),
-                        "d MMM yyyy h:mm a"
-                      )}
-                    </td>
-                    {userRole === "Manager" && (
-                      <td>
-                        <button
-                          className="btn btn-secondary"
-                          onClick={() => handleSelectEmployee(employee._id)}
-                          disabled={selectedEmployee === employee._id}
-                        >
-                          {selectedEmployee === employee._id
-                            ? "Selected"
-                            : "Select"}
-                        </button>
-                      </td>
-                    )}
                   </tr>
-                ))}
+                ) : (
+                  filteredEmployees.map((employee) => (
+                    <tr key={employee._id}>
+                      <td>{employee.name}</td>
+                      <td>{employee.location}</td>
+                      <td>{employee.departmentId?.name || "--"}</td>
+                      <td>
+                        {format(
+                          new Date(employee.createdAt),
+                          "d MMM yyyy h:mm a"
+                        )}
+                      </td>
+                      <td>
+                        {format(
+                          new Date(employee.updatedAt),
+                          "d MMM yyyy h:mm a"
+                        )}
+                      </td>
+                      {userRole === "Manager" && (
+                        <td>
+                          <button
+                            className="btn btn-secondary"
+                            onClick={() => handleSelectEmployee(employee._id)}
+                            disabled={selectedEmployee === employee._id}
+                          >
+                            {selectedEmployee === employee._id
+                              ? "Selected"
+                              : "Select"}
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
             <div className="d-flex justify-content-between mt-3">
@@ -295,7 +304,6 @@ const Employees = () => {
             </div>
           </>
         )}
-
         {userRole === "Manager" && selectedEmployeeId && (
           <div className="mt-3">
             <h5>Assign Department to Employee</h5>
