@@ -22,34 +22,6 @@ const Departments = () => {
   } = useForm();
 
   useEffect(() => {
-    const fetchDepartments = async () => {
-      setLoading(true);
-      try {
-        const token = localStorage.getItem("token");
-        const response = await axios.get(
-          "http://localhost:5000/api/departments",
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            params: { page: currentPage, limit: 5 },
-          }
-        );
-
-        setDepartments(response.data.departments);
-        setTotalPages(response.data.totalPages);
-      } catch (error) {
-        setError("Failed to fetch departments");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const fetchUserRole = () => {
-      const userData = JSON.parse(localStorage.getItem("user"));
-      if (userData) {
-        setUserRole(userData.role);
-      }
-    };
-
     fetchDepartments();
     fetchUserRole();
   }, [currentPage]);
@@ -62,6 +34,34 @@ const Departments = () => {
       return () => clearTimeout(timer);
     }
   }, [error]);
+
+  const fetchDepartments = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.get(
+        "http://localhost:5000/api/departments",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { page: currentPage, limit: 5 },
+        }
+      );
+
+      setDepartments(response.data.departments);
+      setTotalPages(response.data.totalPages);
+    } catch (error) {
+      setError("Failed to fetch departments");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchUserRole = () => {
+    const userData = JSON.parse(localStorage.getItem("user"));
+    if (userData) {
+      setUserRole(userData.role);
+    }
+  };
 
   const handleCloseError = () => {
     setError("");
@@ -98,6 +98,7 @@ const Departments = () => {
           }
         );
         setDepartments([...departments, response.data]);
+        fetchDepartments();
       }
       setValue("name", "");
     } catch (error) {

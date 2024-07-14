@@ -9,7 +9,7 @@ const Employees = () => {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [departments, setDepartments] = useState([]);
+  const [departments, setDepartments] = useState([]); // Ensure departments is initialized as an array
   const [userRole, setUserRole] = useState("");
   const [selectedDepartmentId, setSelectedDepartmentId] = useState("");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
@@ -30,7 +30,11 @@ const Employees = () => {
     fetchEmployees();
     fetchUserRole();
     fetchDepartments();
-  }, [filter, currentPage]);
+  }, [currentPage]);
+
+  useEffect(() => {
+    fetchEmployees();
+  }, [filter]);
 
   useEffect(() => {
     if (error) {
@@ -50,8 +54,9 @@ const Employees = () => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      setDepartments(response.data);
+      setDepartments(response.data.departments);
     } catch (error) {
+      console.error("Error fetching departments:", error);
       setError("Failed to fetch departments");
     }
   };
@@ -62,8 +67,9 @@ const Employees = () => {
       const token = localStorage.getItem("token");
       const response = await axios.get("http://localhost:5000/api/employees", {
         headers: { Authorization: `Bearer ${token}` },
-        params: { ...filter, page: currentPage, limit: 4 },
+        params: { ...filter, page: currentPage, limit: 5 },
       });
+
       setEmployees(response.data.employees);
       setTotalPages(response.data.totalPages);
     } catch (error) {
@@ -82,7 +88,6 @@ const Employees = () => {
 
   const handleFilter = (filterType, value) => {
     setFilter((prev) => ({ ...prev, [filterType]: value }));
-    fetchEmployees();
   };
 
   const handleAddEmployee = async (data) => {
@@ -100,7 +105,13 @@ const Employees = () => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      setEmployees([response.data, ...employees]);
+
+      if (currentPage === totalPages) {
+        setEmployees((prev) => [response.data, ...prev]);
+      } else {
+        fetchEmployees();
+      }
+
       reset();
     } catch (error) {
       setError("Failed to add employee");
@@ -293,7 +304,9 @@ const Employees = () => {
               >
                 Previous
               </button>
-              <span>{`Page ${currentPage} of ${totalPages}`}</span>
+              <span>
+                Page {currentPage} of {totalPages}
+              </span>
               <button
                 className="btn btn-primary"
                 disabled={currentPage === totalPages}
@@ -304,30 +317,46 @@ const Employees = () => {
             </div>
           </>
         )}
-        {userRole === "Manager" && selectedEmployeeId && (
-          <div className="mt-3">
-            <h5>Assign Department to Employee</h5>
-            <select
-              value={selectedDepartmentId}
-              onChange={(e) => setSelectedDepartmentId(e.target.value)}
-              className="form-select"
-            >
-              <option value="">Select Department</option>
-              {departments.map((department) => (
-                <option key={department._id} value={department._id}>
-                  {department.name}
-                </option>
-              ))}
-            </select>
-            <div className="btn-group mt-3">
+        {userRole === "Manager" && (
+          <>
+            <h3 className="mt-5">Assign Department</h3>
+            <div className="d-flex gap-3 mt-3">
+              <select
+                value={selectedEmployeeId}
+                onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                className="form-select"
+              >
+                <option value="">Select Employee</option>
+                {employees.map((employee) => (
+                  <option key={employee._id} value={employee._id}>
+                    {employee.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={selectedDepartmentId}
+                onChange={(e) => setSelectedDepartmentId(e.target.value)}
+                className="form-select"
+              >
+                <option value="">Select Department</option>
+                {Array.isArray(departments) &&
+                  departments.map((department) => (
+                    <option key={department._id} value={department._id}>
+                      {department.name}
+                    </option>
+                  ))}
+              </select>
+
               <button
-                className="btn btn-primary me-2"
+                className="btn btn-primary"
                 onClick={handleAssignDepartment}
+                disabled={!selectedEmployeeId || !selectedDepartmentId}
               >
                 Assign Department
               </button>
             </div>
-          </div>
+          </>
         )}
       </div>
     </>
