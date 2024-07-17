@@ -14,16 +14,30 @@ const Signup = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+
+    const user = {
+      name,
+      email,
+      password,
+      role,
+    };
+
+    console.log("Payload being sent to the server:", user);
+
     try {
-      await axios.post("http://localhost:5000/api/auth/signup", {
-        name,
-        email,
-        password,
-        role,
-      });
+      const response = await axios.post(
+        "http://localhost:5000/api/auth/signup",
+        user,
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
       navigate("/departments");
     } catch (error) {
-      setError("Signup failed");
+      console.error("Error response from server:", error.response?.data);
+      setError(error.response?.data?.message || "Signup failed");
     }
   };
 
